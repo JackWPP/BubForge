@@ -1,25 +1,30 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QListWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QListWidget, QTabWidget, QVBoxLayout, QWidget
 
 
 class SelectionPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("SidePanel")
         self.keyframes_list = QListWidget()
         self.ranges_list = QListWidget()
 
-        keyframes_layout = QVBoxLayout()
-        keyframes_layout.addWidget(QLabel("关键帧"))
-        keyframes_layout.addWidget(self.keyframes_list)
+        tabs = QTabWidget()
+        keyframe_tab = QWidget()
+        keyframe_layout = QVBoxLayout(keyframe_tab)
+        keyframe_layout.addWidget(self.keyframes_list)
 
-        ranges_layout = QVBoxLayout()
-        ranges_layout.addWidget(QLabel("区间"))
+        ranges_tab = QWidget()
+        ranges_layout = QVBoxLayout(ranges_tab)
         ranges_layout.addWidget(self.ranges_list)
 
-        layout = QHBoxLayout(self)
-        layout.addLayout(keyframes_layout)
-        layout.addLayout(ranges_layout)
+        tabs.addTab(keyframe_tab, "关键帧")
+        tabs.addTab(ranges_tab, "区间")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(tabs)
 
     def add_keyframe(self, label: str) -> None:
         self.keyframes_list.addItem(label)
