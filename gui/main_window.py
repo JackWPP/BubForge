@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QTimer, Qt, QEvent
+from PySide6.QtGui import QAction, QKeySequence, QColor
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -74,6 +74,8 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._build_menu()
+        self._install_shortcut_actions()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -160,6 +162,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(selection_frame)
         layout.addWidget(export_frame)
         self.setCentralWidget(central)
+        central.installEventFilter(self)
 
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("文件")
@@ -170,15 +173,40 @@ class MainWindow(QMainWindow):
         menu.addAction(open_project)
         menu.addAction(open_video)
 
+    def _install_shortcut_actions(self) -> None:
+        self._shortcut_actions: list[QAction] = []
+        mapping = [
+            (self.shortcut_map.play_pause, self.toggle_play),
+            (self.shortcut_map.prev_frame, self.step_prev),
+            (self.shortcut_map.next_frame, self.step_next),
+            (self.shortcut_map.mark_in, self.mark_in),
+            (self.shortcut_map.mark_out, self.mark_out),
+            (self.shortcut_map.add_range, self.add_range),
+            (self.shortcut_map.save_keyframe, self.save_keyframe_action),
+            (self.shortcut_map.export, self._export_ranges),
+            (self.shortcut_map.cancel, self._clear_in_out),
+        ]
+        for key, handler in mapping:
+            action = QAction(self)
+            action.setShortcut(QKeySequence(key))
+            action.triggered.connect(handler)
+            self.addAction(action)
+            self._shortcut_actions.append(action)
+
     def _card_frame(self) -> QFrame:
         frame = QFrame()
         frame.setObjectName("Card")
         shadow = QGraphicsDropShadowEffect(frame)
         shadow.setBlurRadius(20)
         shadow.setOffset(0, 6)
-        shadow.setColor(Qt.black)
+        shadow.setColor(QColor(0, 0, 0, 160))
         frame.setGraphicsEffect(shadow)
         return frame
+
+    def _clear_in_out(self) -> None:
+        self.in_ms = None
+        self.out_ms = None
+        self._refresh_in_out()
 
     def pick_project(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, "选择项目目录")
@@ -291,18 +319,25 @@ class MainWindow(QMainWindow):
             or self.video_id is None
         ):
             return
+        video_path = self.video_path
+        if video_path is None:
+            return
         frame = self.capture.get_frame_at(self.current_frame_index)
         if not frame:
             return
-        record = save_keyframe(
-            project_dir=self.project_dir,
-            video_folder=self.video_folder,
-            video_id=self.video_id,
-            src_video_path=str(self.video_path) if self.video_path else "",
-            timestamp_ms=frame.timestamp_ms,
-            frame_index=frame.frame_index,
-            image=frame.image,
-        )
+        try:
+            record = save_keyframe(
+                project_dir=self.project_dir,
+                video_folder=self.video_folder,
+                video_id=self.video_id,
+                src_video_path=str(video_path),
+                timestamp_ms=frame.timestamp_ms,
+                frame_index=frame.frame_index,
+                image=frame.image,
+            )
+        except RuntimeError as exc:
+            QMessageBox.warning(self, "关键帧", str(exc))
+            return
         if record:
             append_frame_records(self.project_dir / "metadata" / "frames.csv", [record])
             self.selection_panel.add_keyframe(
@@ -344,51 +379,41 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, event) -> None:
         key = event.key()
-        if key == Qt.Key_Space:
-            self.toggle_play()
-            return
-        if key == Qt.Key_A:
-            self.step_prev()
-            return
-        if key == Qt.Key_D:
-            self.step_next()
-            return
-        if key == Qt.Key_I:
-            self.mark_in()
-            return
-        if key == Qt.Key_O:
-            self.mark_out()
-            return
-        if key == Qt.Key_Return or key == Qt.Key_Enter:
-            self.add_range()
-            return
-        if key == Qt.Key_S:
-            self.save_keyframe_action()
-            return
-        if key == Qt.Key_E:
-            self._export_ranges()
-            return
-        if key == Qt.Key_Escape:
-            self.in_ms = None
-            self.out_ms = None
-            self._refresh_in_out()
-            return
-        if key == Qt.Key_J:
+        if key == ord("J"):
             self.seek_direction = -1
             self._start_seek_timer()
             return
-        if key == Qt.Key_L:
+        if key == ord("L"):
             self.seek_direction = 1
             self._start_seek_timer()
             return
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event) -> None:
-        if event.key() in (Qt.Key_J, Qt.Key_L):
+        if event.key() in (ord("J"), ord("L")):
             self.seek_timer.stop()
             self.seek_direction = 0
             return
         super().keyReleaseEvent(event)
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == ord("J"):
+                self.seek_direction = -1
+                self._start_seek_timer()
+                return True
+            if key == ord("L"):
+                self.seek_direction = 1
+                self._start_seek_timer()
+                return True
+        if event.type() == QEvent.Type.KeyRelease:
+            key = event.key()
+            if key in (ord("J"), ord("L")):
+                self.seek_timer.stop()
+                self.seek_direction = 0
+                return True
+        return super().eventFilter(obj, event)
 
     def _start_seek_timer(self) -> None:
         if not self._ensure_video_loaded():
@@ -417,6 +442,9 @@ class MainWindow(QMainWindow):
             or self.video_id is None
         ):
             return
+        video_path = self.video_path
+        if video_path is None:
+            return
         try:
             ensure_ffmpeg()
         except FileNotFoundError as exc:
@@ -434,10 +462,10 @@ class MainWindow(QMainWindow):
         for entry in self.ranges:
             result = extract_range_frames(
                 project_dir=self.project_dir,
-                video_path=self.video_path,
+                video_path=video_path,
                 video_folder=self.video_folder,
                 video_id=self.video_id,
-                src_video_path=str(self.video_path) if self.video_path else "",
+                src_video_path=str(video_path),
                 start_ms=entry.in_ms,
                 end_ms=entry.out_ms,
                 fps=fps,

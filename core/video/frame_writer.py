@@ -30,9 +30,7 @@ def save_keyframe(
     if output_path.exists():
         return None
 
-    success = cv2.imwrite(str(output_path), image)
-    if not success:
-        raise RuntimeError("关键帧写入失败")
+    _write_image(output_path, image, ext)
 
     return FrameRecord.create(
         video_id=video_id,
@@ -42,3 +40,16 @@ def save_keyframe(
         kind="keyframe",
         image_relpath=image_relpath,
     )
+
+
+def _write_image(output_path: Path, image: np.ndarray, ext: str) -> None:
+    if image is None or image.size == 0:
+        raise RuntimeError("关键帧为空，无法写入")
+    safe_image = np.ascontiguousarray(image)
+    success = cv2.imwrite(str(output_path), safe_image)
+    if success:
+        return
+    encoded = cv2.imencode(f".{ext}", safe_image)
+    if not encoded[0]:
+        raise RuntimeError("关键帧写入失败")
+    output_path.write_bytes(encoded[1].tobytes())
