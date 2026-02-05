@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
 class ExportPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("SidePanel")
         self.format_combo = QComboBox()
         self.format_combo.addItems(
             [
@@ -29,12 +31,25 @@ class ExportPanel(QWidget):
         self.fps_spin.setSuffix(" fps")
 
         self.export_button = QPushButton("开始导出")
+        self.export_button.setObjectName("PrimaryButton")
 
-        layout = QHBoxLayout(self)
-        layout.addWidget(QLabel("格式"))
+        title = QLabel("导出")
+        title.setObjectName("SectionTitle")
+
+        format_row = QHBoxLayout()
+        format_row.addWidget(QLabel("格式"))
+        format_row.addStretch(1)
+
+        fps_row = QHBoxLayout()
+        fps_row.addWidget(QLabel("区间 FPS"))
+        fps_row.addStretch(1)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(title)
+        layout.addLayout(format_row)
         layout.addWidget(self.format_combo)
-        layout.addSpacing(12)
-        layout.addWidget(QLabel("区间 FPS"))
+        layout.addSpacing(8)
+        layout.addLayout(fps_row)
         layout.addWidget(self.fps_spin)
         layout.addStretch(1)
         layout.addWidget(self.export_button)

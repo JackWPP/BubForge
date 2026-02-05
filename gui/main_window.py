@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QTimer, Qt, QEvent
-from PySide6.QtGui import QAction, QKeySequence, QColor
+from PySide6.QtGui import QAction, QKeySequence, QColor, QKeyEvent
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -14,6 +14,9 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QComboBox,
+    QScrollArea,
+    QSplitter,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -83,7 +86,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(16)
 
-        header = self._card_frame()
+        header = self._card_frame("TopBar")
         header_layout = QHBoxLayout(header)
         title = QLabel("BubForge · 视频帧提取")
         title.setObjectName("TitleLabel")
@@ -95,21 +98,32 @@ class MainWindow(QMainWindow):
         self.video_button = QToolButton()
         self.video_button.setText("打开视频")
         self.video_button.clicked.connect(self.open_video)
+        self.zoom_combo = QComboBox()
+        self.zoom_combo.addItems(["适配", "100%", "150%", "200%"])
+        self.zoom_combo.currentTextChanged.connect(self._on_zoom_changed)
         self.project_label = QLabel("项目：未选择")
         self.video_label = QLabel("视频：未加载")
         header_layout.addWidget(self.project_button)
         header_layout.addWidget(self.video_button)
+        header_layout.addSpacing(8)
+        header_layout.addWidget(QLabel("显示"))
+        header_layout.addWidget(self.zoom_combo)
         header_layout.addSpacing(12)
         header_layout.addWidget(self.project_label)
         header_layout.addSpacing(16)
         header_layout.addWidget(self.video_label)
 
         self.player = VideoPlayerWidget()
-        player_frame = self._card_frame()
+        player_frame = self._card_frame("ViewerFrame")
         player_layout = QVBoxLayout(player_frame)
-        player_layout.addWidget(self.player)
+        self.viewer_scroll = QScrollArea()
+        self.viewer_scroll.setWidget(self.player)
+        self.viewer_scroll.setWidgetResizable(False)
+        self.viewer_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.viewer_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        player_layout.addWidget(self.viewer_scroll)
 
-        controls_frame = self._card_frame()
+        controls_frame = self._card_frame("TransportBar")
         controls_layout = QHBoxLayout(controls_frame)
         self.play_button = QToolButton()
         self.play_button.setText("播放")
@@ -127,7 +141,15 @@ class MainWindow(QMainWindow):
         self.out_button.setText("设 Out")
         self.out_button.clicked.connect(self.mark_out)
         self.keyframe_button = QPushButton("保存关键帧")
+        self.keyframe_button.setObjectName("PrimaryButton")
         self.keyframe_button.clicked.connect(self.save_keyframe_action)
+
+        self.timecode_label = QLabel("00:00.000 / 00:00.000")
+        self.timecode_label.setObjectName("Timecode")
+        self.frame_label = QLabel("f0 / f0")
+        self.frame_label.setObjectName("Framecode")
+        self.fps_label = QLabel("FPS: --")
+        self.fps_label.setObjectName("Framecode")
 
         controls_layout.addWidget(self.play_button)
         controls_layout.addWidget(self.prev_button)
@@ -136,31 +158,39 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.in_button)
         controls_layout.addWidget(self.out_button)
         controls_layout.addStretch(1)
+        controls_layout.addWidget(self.timecode_label)
+        controls_layout.addSpacing(12)
+        controls_layout.addWidget(self.frame_label)
+        controls_layout.addSpacing(12)
+        controls_layout.addWidget(self.fps_label)
+        controls_layout.addSpacing(12)
         controls_layout.addWidget(self.keyframe_button)
 
         self.timeline = TimelineWidget()
-        timeline_frame = self._card_frame()
+        timeline_frame = self._card_frame("TimelineBar")
         timeline_layout = QVBoxLayout(timeline_frame)
         timeline_layout.addWidget(self.timeline)
         self.timeline.positionChanged.connect(self.seek_to_frame)
 
         self.selection_panel = SelectionPanel()
-        selection_frame = self._card_frame()
-        selection_layout = QVBoxLayout(selection_frame)
-        selection_layout.addWidget(self.selection_panel)
-
         self.export_panel = ExportPanel()
+        self.export_panel.setObjectName("SidePanel")
         self.export_panel.export_button.clicked.connect(self.export_action)
-        export_frame = self._card_frame()
-        export_layout = QVBoxLayout(export_frame)
-        export_layout.addWidget(self.export_panel)
+        splitter_frame = self._card_frame("BottomSplit")
+        splitter_layout = QHBoxLayout(splitter_frame)
+        splitter_layout.setContentsMargins(8, 8, 8, 8)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.addWidget(self.selection_panel)
+        splitter.addWidget(self.export_panel)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        splitter_layout.addWidget(splitter)
 
         layout.addWidget(header)
         layout.addWidget(player_frame)
         layout.addWidget(controls_frame)
         layout.addWidget(timeline_frame)
-        layout.addWidget(selection_frame)
-        layout.addWidget(export_frame)
+        layout.addWidget(splitter_frame)
         self.setCentralWidget(central)
         central.installEventFilter(self)
 
@@ -193,9 +223,9 @@ class MainWindow(QMainWindow):
             self.addAction(action)
             self._shortcut_actions.append(action)
 
-    def _card_frame(self) -> QFrame:
+    def _card_frame(self, name: str = "Card") -> QFrame:
         frame = QFrame()
-        frame.setObjectName("Card")
+        frame.setObjectName(name)
         shadow = QGraphicsDropShadowEffect(frame)
         shadow.setBlurRadius(20)
         shadow.setOffset(0, 6)
@@ -215,6 +245,18 @@ class MainWindow(QMainWindow):
         self.project_dir = Path(directory)
         init_project(self.project_dir)
         self.project_label.setText(f"项目：{self.project_dir}")
+
+    def _on_zoom_changed(self, text: str) -> None:
+        if text == "适配":
+            self.player.set_scale_mode("fit")
+        else:
+            try:
+                factor = float(text.strip("%")) / 100.0
+            except ValueError:
+                factor = 1.0
+            self.player.set_scale_mode("zoom")
+            self.player.set_zoom_factor(factor)
+        self._sync_viewport()
 
     def open_video(self) -> None:
         if self.project_dir is None:
@@ -240,6 +282,8 @@ class MainWindow(QMainWindow):
             self.player.set_frame(frame.image)
         self.timeline.set_video_info(self.capture.total_frames, self.capture.fps)
         self.timeline.set_position(self.current_frame_index)
+        self._update_status_labels(self.current_frame_index)
+        self._sync_viewport()
         self.video_label.setText(f"视频：{self.video_path.name}")
 
     def toggle_play(self) -> None:
@@ -370,12 +414,32 @@ class MainWindow(QMainWindow):
         self.current_timestamp_ms = timestamp_ms
         self.player.set_frame(image)
         self.timeline.set_position(frame_index)
+        self._update_status_labels(frame_index)
 
     def _format_ms(self, timestamp_ms: int) -> str:
         total_seconds = max(timestamp_ms, 0) / 1000.0
         minutes = int(total_seconds // 60)
         seconds = total_seconds % 60
         return f"{minutes:02d}:{seconds:06.3f}"
+
+    def _update_status_labels(self, frame_index: int) -> None:
+        fps = self.capture.fps
+        total_frames = max(self.capture.total_frames - 1, 0)
+        current_ms = int(round((frame_index / max(fps, 1e-6)) * 1000))
+        total_ms = int(round((total_frames / max(fps, 1e-6)) * 1000))
+        self.timecode_label.setText(
+            f"{self._format_ms(current_ms)} / {self._format_ms(total_ms)}"
+        )
+        self.frame_label.setText(f"f{frame_index} / f{total_frames}")
+        self.fps_label.setText(f"FPS: {fps:.2f}" if fps > 0 else "FPS: --")
+
+    def _sync_viewport(self) -> None:
+        if hasattr(self, "viewer_scroll"):
+            self.player.set_viewport_size(self.viewer_scroll.viewport().size())
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_viewport()
 
     def keyPressEvent(self, event) -> None:
         key = event.key()
@@ -396,8 +460,8 @@ class MainWindow(QMainWindow):
             return
         super().keyReleaseEvent(event)
 
-    def eventFilter(self, obj, event) -> bool:
-        if event.type() == QEvent.Type.KeyPress:
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() == QEvent.Type.KeyPress and isinstance(event, QKeyEvent):
             key = event.key()
             if key == ord("J"):
                 self.seek_direction = -1
@@ -407,13 +471,13 @@ class MainWindow(QMainWindow):
                 self.seek_direction = 1
                 self._start_seek_timer()
                 return True
-        if event.type() == QEvent.Type.KeyRelease:
+        if event.type() == QEvent.Type.KeyRelease and isinstance(event, QKeyEvent):
             key = event.key()
             if key in (ord("J"), ord("L")):
                 self.seek_timer.stop()
                 self.seek_direction = 0
                 return True
-        return super().eventFilter(obj, event)
+        return super().eventFilter(watched, event)
 
     def _start_seek_timer(self) -> None:
         if not self._ensure_video_loaded():

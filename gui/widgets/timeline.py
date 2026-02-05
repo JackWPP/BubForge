@@ -24,8 +24,8 @@ class MarkedSlider(QSlider):
         self._out_value = out_value
         self.update()
 
-    def paintEvent(self, event) -> None:
-        super().paintEvent(event)
+    def paintEvent(self, ev) -> None:
+        super().paintEvent(ev)
         if self._in_value is None and self._out_value is None:
             return
         option = QStyleOptionSlider()
@@ -37,7 +37,7 @@ class MarkedSlider(QSlider):
             self,
         )
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         def value_to_x(value: int) -> int:
             if self.maximum() == self.minimum():
@@ -82,7 +82,7 @@ class TimelineWidget(QWidget):
         self._in_ms: int | None = None
         self._out_ms: int | None = None
 
-        self.slider = MarkedSlider(Qt.Horizontal)
+        self.slider = MarkedSlider(Qt.Orientation.Horizontal)
         self.slider.setObjectName("TimelineSlider")
         self.slider.setRange(0, 0)
         self.slider.valueChanged.connect(self._emit_position)
