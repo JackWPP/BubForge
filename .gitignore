@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.ruff_cache/
+dist/
+build/
+*.spec
+frames/
+metadata/
+logs/
+artifacts/
+*.exe
+*.log
