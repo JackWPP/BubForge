@@ -31,3 +31,13 @@ class SelectionPanel(QWidget):
 
     def add_range(self, label: str) -> None:
         self.ranges_list.addItem(label)
+
+    def clear_keyframes(self) -> None:
+        self.keyframes_list.clear()
+
+    def clear_ranges(self) -> None:
+        self.ranges_list.clear()
+
+    def clear_all(self) -> None:
+        self.clear_keyframes()
+        self.clear_ranges()

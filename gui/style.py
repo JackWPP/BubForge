@@ -174,6 +174,17 @@ QSlider#TimelineSlider::handle:horizontal {
     border-radius: 3px;
 }
 
+QScrollBar:vertical {
+    background: #0f1115;
+    width: 10px;
+}
+
+QScrollBar::handle:vertical {
+    background: #2a3140;
+    border-radius: 5px;
+    min-height: 20px;
+}
+
 QSlider::sub-page:horizontal {
     background: #2f4fb8;
     border-radius: 3px;
@@ -199,5 +210,53 @@ QTabBar::tab:selected {
 
 QSplitter::handle {
     background-color: #1c2230;
+}
+
+QSplitter::handle:horizontal {
+    width: 6px;
+}
+
+QSplitter::handle:vertical {
+    height: 6px;
+}
+
+QDockWidget {
+    background-color: #11161f;
+    border: 1px solid #242a36;
+    border-radius: 8px;
+}
+
+QDockWidget::title {
+    text-align: left;
+    background-color: #161c28;
+    color: #d7dce5;
+    padding: 6px 10px;
+    border-bottom: 1px solid #242a36;
+}
+
+QDockWidget::close-button,
+QDockWidget::float-button {
+    border: none;
+    background-color: #202a3b;
+    border-radius: 4px;
+}
+
+QMenuBar {
+    background-color: #0f1115;
+    color: #d7dce5;
+}
+
+QMenuBar::item:selected {
+    background-color: #1a2232;
+}
+
+QMenu {
+    background-color: #121722;
+    color: #d7dce5;
+    border: 1px solid #242a36;
+}
+
+QMenu::item:selected {
+    background-color: #24324b;
 }
 """

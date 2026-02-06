@@ -18,6 +18,7 @@ class VideoPlayerWidget(QLabel):
         self._scale_mode = "fit"
         self._zoom_factor = 1.0
         self._viewport_size: Optional[QSize] = None
+        self._keep_aspect = True
 
     def set_frame(self, frame: np.ndarray) -> None:
         self._last_frame = frame
@@ -37,6 +38,11 @@ class VideoPlayerWidget(QLabel):
 
     def set_zoom_factor(self, factor: float) -> None:
         self._zoom_factor = max(factor, 0.1)
+        if self._last_frame is not None:
+            self._render_frame()
+
+    def set_aspect_lock(self, keep_aspect: bool) -> None:
+        self._keep_aspect = keep_aspect
         if self._last_frame is not None:
             self._render_frame()
 
@@ -60,9 +66,14 @@ class VideoPlayerWidget(QLabel):
         )
         pixmap = QPixmap.fromImage(image)
         target_size = self._compute_target_size(width, height)
+        aspect_mode = (
+            Qt.AspectRatioMode.KeepAspectRatio
+            if self._keep_aspect
+            else Qt.AspectRatioMode.IgnoreAspectRatio
+        )
         scaled = pixmap.scaled(
             target_size,
-            Qt.AspectRatioMode.KeepAspectRatio,
+            aspect_mode,
             Qt.TransformationMode.SmoothTransformation,
         )
         self.setPixmap(scaled)
@@ -70,6 +81,8 @@ class VideoPlayerWidget(QLabel):
 
     def _compute_target_size(self, width: int, height: int) -> QSize:
         if self._scale_mode == "fit" and self._viewport_size:
+            if not self._keep_aspect:
+                return QSize(self._viewport_size.width(), self._viewport_size.height())
             scale = min(
                 self._viewport_size.width() / max(width, 1),
                 self._viewport_size.height() / max(height, 1),

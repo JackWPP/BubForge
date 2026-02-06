@@ -18,10 +18,18 @@ class MarkedSlider(QSlider):
         super().__init__(orientation)
         self._in_value: int | None = None
         self._out_value: int | None = None
+        self._key_values: list[int] = []
 
     def set_markers(self, in_value: int | None, out_value: int | None) -> None:
         self._in_value = in_value
         self._out_value = out_value
+        self.update()
+
+    def set_key_markers(self, values: list[int]) -> None:
+        unique_values = sorted(
+            {v for v in values if v >= self.minimum() and v <= self.maximum()}
+        )
+        self._key_values = unique_values
         self.update()
 
     def paintEvent(self, ev) -> None:
@@ -71,6 +79,16 @@ class MarkedSlider(QSlider):
         if self._out_value is not None:
             draw_marker(self._out_value, QColor(240, 98, 98))
 
+        if self._key_values:
+            key_pen = QPen(QColor(255, 214, 102))
+            key_pen.setWidth(2)
+            painter.setPen(key_pen)
+            y1 = groove.y() + groove.height() + 2
+            y2 = y1 + 7
+            for value in self._key_values:
+                x = value_to_x(value)
+                painter.drawLine(x, y1, x, y2)
+
 
 class TimelineWidget(QWidget):
     positionChanged = Signal(int)
@@ -81,6 +99,7 @@ class TimelineWidget(QWidget):
         self._total_frames = 0
         self._in_ms: int | None = None
         self._out_ms: int | None = None
+        self._keyframe_indices: set[int] = set()
 
         self.slider = MarkedSlider(Qt.Orientation.Horizontal)
         self.slider.setObjectName("TimelineSlider")
@@ -132,6 +151,20 @@ class TimelineWidget(QWidget):
         self.label_out.setText(
             "Out: --" if out_ms is None else f"Out: {self._format_time(out_ms)}"
         )
+
+    def add_keyframe_marker(self, frame_index: int) -> None:
+        if frame_index < 0:
+            return
+        self._keyframe_indices.add(frame_index)
+        self.slider.set_key_markers(sorted(self._keyframe_indices))
+
+    def set_keyframe_markers(self, frame_indices: list[int]) -> None:
+        self._keyframe_indices = {idx for idx in frame_indices if idx >= 0}
+        self.slider.set_key_markers(sorted(self._keyframe_indices))
+
+    def clear_keyframe_markers(self) -> None:
+        self._keyframe_indices.clear()
+        self.slider.set_key_markers([])
 
     def _emit_position(self, frame_index: int) -> None:
         self._update_labels(frame_index)
