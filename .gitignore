@@ -10,3 +10,7 @@ logs/
 artifacts/
 *.exe
 *.log
+
+# Documentation/Specs to ignore
+Agents.md
+SPEC.md
